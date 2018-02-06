@@ -1,24 +1,18 @@
-#Cloud Kit Messenger
+#Bark Loud Sample App (based on Cloud Kit Messenger)
 
-CloudKitMessenger is a part of [Loose Leaf](https://getlooseleaf.com), and allows for sending text and binary messages between users through CloudKit on iOS.
-
-A simple, functioning example is included showing how to build messaging for your app on top of CloudKit. It allows a user to send and receive messages to and from anyone in their address book who is also using your app (and has allowed themselves to be discoverable.)
-
-This messenger allows your users to send text and an image to their friends who are also using your app. It only has a few methods, and drastically shrinks the amount of error cases you will have to deal with.
+CloudKitMessenger is a part of [Loose Leaf](https://getlooseleaf.com), and allows for sending text and binary messages between users through CloudKit on iOS. The Sample App has been enhanced to include a  You will need to run
+```
+pod install
+```
+from the folder where the Podfile resides to get JSQMessagesViewController from CocoaPods.
+N.B. the JSQMessagesViewController pod is no longer being updated and is used just for demo purposes. Let us know if you come across an equivalent (maybe ZHChat ?) that slots in painlessly !
 
 ## Building
 
-This project builds a static iOS framework bundle.
-
-##Installation
-
-Download or clone the repository, and copy these files to your project:
+This workspace contains both the updated CloudKitMessenger and the Simple CloudKit Messenger App..
 
 ```
-SPRMessage.h
-SPRMessage.m
-SPRSimpleCloudKitMessenger.h
-SPRSimpleCloudKitMessenger.m
+open 'Simple CloudKit Messenger Sample.xcworkspace'
 ```
 
 ##Setup
@@ -31,134 +25,21 @@ You'll need to configure your iCloud/CloudKit capabilities. If you are running t
 
 ###Login
 
-CloudKit doesn't offer an exact equivalent to logging in. If the user is logged into iCloud on their device, they are logged into iCloud as far as your app is concerned.
+CloudKit doesn't offer an exact equivalent to logging in. If the user is logged into iCloud on their device, they are logged into iCloud as far as your app is concerned. You need to be logged in to iCloud to be able to find and ohat with friends.
 
-`verifyAndFetchActiveiCloudUserWithCompletionHandler` is your main entry point. Although the user is already technically logged in, this would be a good method to call from a "Login with iCloud" button. You could store the success of this method in a user default, to know whether you should be able to successfully call other methods.
-
-```Objective-C
-- (void) loginAction {
-    [[SPRSimpleCloudKitMessenger sharedMessenger] verifyAndFetchActiveiCloudUserWithCompletionHandler:^(CKDiscoveredUserInfo *userInfo, NSError *error) {
-        if (error) {
-            [[[UIAlertView alloc] initWithTitle:@"Error" message:error.localizedDescription delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil, nil] show];
-        } else {
-            [[NSUserDefaults standardUserDefaults] setBool: YES forKey:@"loggedIn"];
-        }
-    }];
-}
-```
-
-This method does the majority of the heavy lifting for setting up for the active iCloud user. It checks if they have a valid iCloud account and prompts for them to be discoverable. It will return an error if they don't have a valid iCloud account, or if their discovery permissions are disabled.
-
-Once "logged in", you should call this method every time your app becomes active so it can perform it's checks.
-
-```Objective-C
-- (void)applicationDidBecomeActive:(UIApplication *)application {
-    BOOL loggedIn = [[NSUserDefaults standardUserDefaults] boolForKey:@"loggedIn"];
-    if (loggedIn) {
-        [[SPRSimpleCloudKitMessenger sharedMessenger] verifyAndFetchActiveiCloudUserWithCompletionHandler:^(CKDiscoveredUserInfo *userInfo, NSError *error) {
-            if (error) {
-                if(error.code == RSimpleCloudMessengerErroriCloudAcountChanged) {
-                    // user has changed from previous user
-                    // do logout logic and let the new user "login"
-                } else {
-                    // some other error, decide whether to show error
-                }
-            }
-        }];
-    }
-}
-```
-
-This method will also return an error if the user changed iCloud accounts since the last time they used your app. You should check for error code == `RSimpleCloudMessengerErroriCloudAcountChanged` and clean up any private user data. Once you have cleaned up old user data, call this method again to prepare for the new iCloud user (or when they tap a "login" button).
-
-Any errors returned from this method, or any other method on this class, will have a friendly error message in NSLocalizedDescription.
-
-All serious errors will carry the code `SPRSimpleCloudMessengerErrorUnexpected`.
 
 ###Friends
 
-To grab all the available friends from the user's address book that are using the app and discoverable, you'll use `discoverAllFriendsWithCompletionHandler`. It provides an array of `CKDiscoveredUserInfo` objects.
-
-###Sending message
-
-To send a message, you'll use the `sendMessage:withImageURL:toUserRecordID:withCompletionHandler`. The `CKRecordID` can be pulled off of a `CKDiscoveredUserInfo` object from the previous method.  CloudKit makes it very easy to upload blob objects like images. You just need to provide the location to the image on disk.
-
-```Objective-C
-- (void) tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    CKDiscoveredUserInfo *userInfo = self.friends[indexPath.row];
-    NSURL *imageURL = [self getImageURL];
-    [[SPRSimpleCloudKitMessenger sharedMessenger] sendMessage:textfield.text withImageURL:imageURL toUserRecordID:userInfo.userRecordID withCompletionHandler:^(NSError *error) {
-        if (error) {
-            [[[UIAlertView alloc] initWithTitle:@"Error" message:error.localizedDescription delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil, nil] show];
-        } else {
-            [[[UIAlertView alloc] initWithTitle:@"Success!" message:@"Message sent" delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil, nil] show];
-        }
-    }];
-    [self.tableView deselectRowAtIndexPath:self.tableView.indexPathForSelectedRow animated:YES];
-}
-```
+The Sample App will list all friends that are also using the App. You can switch between the list of friends and the latest messages by using the Tab Controlbar.
 
 ###Fetching messages
 
-Fetching messages is quite easy. Calling `fetchNewMessagesWithCompletionHandler` will give you an array of `SPRMessage` objects. Just be sure to store messages somewhere if you need to maintain them across app launches, as there is no way currently to retrieve old messages.
+Fetching messages is triggered when a friend is selected. All the previous messages will be retrieved and displayed in a JSQMessagesViewController subclass called ChatViewMessenger.
 
-The `SPRMessage` object is just a very simple data object, but it adheres to the NSCoding protocol, so it can be stored/cached easily.
+###Sending messages
 
-```Objective-C
-- (void)viewDidLoad
-{
-    [super viewDidLoad];
-    [[SPRSimpleCloudKitMessenger sharedMessenger] fetchNewMessagesWithCompletionHandler:^(NSArray *messages, NSError *error) {
-        self.messages = [self.messages arrayByAddingObjectsFromArray:messages];
-        [self.tableView reloadData];
-    }];
-}
+You can send a message to the friend by typing it into the Input Text field at the bottom of the ChatViewMessenger screen and hitting the "Send" button. When the friend's device receives the remote notification it will automatically add the new chat message to the bottom of the conversation if the ChatViewMessenger is being displayed allowing an Instant Messaging interaction.
 
-- (UITableViewCell *) tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    UITableViewCell *cell = [self.tableView dequeueReusableCellWithIdentifier:@"SPRMessageCell"];
-    SPRMessage *message = self.messages[indexPath.row];
-    cell.textLabel.text = message.messageText;
-    return cell;
-}
-```
 
-The method above for fetching messages doesn't automatically pull down the image data for a message. When displaying the message detail, you can call `fetchDetailsForMessage:withCompletionHandler:` to get the image data. You pass a `SPRMessage` object in, and that same object is updated. You can check if the image exists before requesting the details.
 
-```Objective-C
-- (void)viewDidLoad
-{
-    [super viewDidLoad];
-    self.messageLabel.text = self.message.messageText;
-    if (self.message.messageImage) {
-        self.imageView.image = self.message.messageImage;
-    } else {
-        [[SPRSimpleCloudKitMessenger sharedMessenger] fetchDetailsForMessage:self.message withCompletionHandler:^(SPRMessage *message, NSError *error) {
-            self.messageLabel.text = message.messageText;
-            self.imageView.image = message.messageImage;
-        }];
-    }
-}
-```
 
-The only other method to be aware of is `messageForQueryNotification:withCompletionHandler:` which lets you turn a new message notification the user may have swiped/tapped into a message object that you can display.
-
-```Objective-C
-- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)info {
-    
-    // Do something if the app was in background. Could handle foreground notifications differently
-    if (application.applicationState != UIApplicationStateActive) {
-        [self checkForNotificationToHandleWithUserInfo:info];
-    }
-}
-
-- (void) checkForNotificationToHandleWithUserInfo:(NSDictionary *)userInfo {
-    NSString *notificationKey = [userInfo valueForKeyPath:@"ck.qry.sid"];
-    if ([notificationKey isEqualToString:SPRSubscriptionIDIncomingMessages]) {
-        CKQueryNotification *notification = [CKQueryNotification notificationFromRemoteNotificationDictionary:userInfo];
-        [[SPRSimpleCloudKitMessenger sharedMessenger] messageForQueryNotification:notification withCompletionHandler:^(SPRMessage *message, NSError *error) {
-            // Do something with the message, like pushing it onto the stack
-            NSLog(@"%@", message);
-        }];
-    }
-}
-```
